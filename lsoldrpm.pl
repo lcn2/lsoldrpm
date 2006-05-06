@@ -2,8 +2,8 @@
 #
 # lsoldrpm - list old RPMs found in a directory
 #
-# @(#) $Revision: 1.3 $
-# @(#) $Id: lsoldrpm.pl,v 1.3 2006/05/06 06:53:18 chongo Exp chongo $
+# @(#) $Revision: 1.4 $
+# @(#) $Id: lsoldrpm.pl,v 1.4 2006/05/06 07:01:55 chongo Exp chongo $
 # @(#) $Source: /usr/local/src/cmd/lsoldrpm/RCS/lsoldrpm.pl,v $
 #
 # Copyright (c) 2006 by Landon Curt Noll.  All Rights Reserved.
@@ -62,7 +62,7 @@
 #
 use strict;
 use bytes;
-use vars qw($opt_v $opt_b $opt_k $opt_m $opt_n $opt_r);
+use vars qw($opt_v $opt_b $opt_k $opt_m $opt_n $opt_e $opt_r);
 use Getopt::Long;
 use File::Find;
 no warnings 'File::Find';
@@ -90,14 +90,13 @@ BEGIN {
 
 # version - RCS style *and* usable by MakeMaker
 #
-my $VERSION = substr q$Revision: 1.3 $, 10;
+my $VERSION = substr q$Revision: 1.4 $, 10;
 $VERSION =~ s/\s+$//;
 
 # my vars
 #
 my $untaint = qr|^([-+\w\s./]+)$|; 	# untainting path pattern
 my @file;				# list of RPM filenames found
-my %rpm_path;		# $rpm_path{$i} is dir path of $i without final /
 #
 # NOTE: For calc-devel-2.11.11-0.i686.rpm
 #
@@ -105,6 +104,7 @@ my %rpm_path;		# $rpm_path{$i} is dir path of $i without final /
 #	RPM version:	2.11.11
 #	RPM release	0
 #	RPM ext:	i686.rpm
+#	RPM key:	calc-devel.i686.rpm
 #
 # NOTE: For java-1.4.2-ibm-devel-1.4.2.3-1jpp_14rh.i386.rpm
 #
@@ -112,11 +112,13 @@ my %rpm_path;		# $rpm_path{$i} is dir path of $i without final /
 #	RPM version:	1.4.2.3
 #	RPM release:	1jpp_14rh
 #	RPM ext:	i386.rpm
+#	RPM key:	java-1.4.2-ibm-devel.i386.rpm
 #
 my %rpm_name;		# $rpm_name{$i} is the RPM name of RPM filename $i
 my %rpm_ver;		# $rpm_ver{$i} is the RPM version of RPM filename $i
 my %rpm_rel;		# $rpm_rel{$i} is the RPM release of RPM filename $i
 my %rpm_ext;		# $rpm_ext{$i} is chars after release for filename $i
+my %rpm_key;		# $rpm_key{$i} is $rpm_name{$i}.$rpm_ext{$i} for $i
 
 # $rpm{$n} is array RPM filenames for the RPM named $n
 #
@@ -126,14 +128,17 @@ my %rpm;
 
 # usage and help
 #
-my $usage = "$0 {[-k] [-b | -m | -r] [-n] [-v lvl] dir";
+my $usage = "$0 [-b|-e|-m] [-k] [-n] [-r] [-v lvl] dir";
 my $help = qq{$usage
 
-	-b	just print basename of RPM file (default: full pathname)
-	-k	list older kernel based RPM (default: don't)
-	-m	just list module names (default: full pathname)
-	-r	just list module-version-release names (default: full pathname)
-	-n	print newest RPMs (default: list just older RPMs)
+	-b	print basename of RPM file (def: print pathname)
+	-e	print extended module-version-releases (def: print pathname)
+	-m	print module names (def: print pathname)
+
+	-k	list older kernel based RPM (def: don't)
+	-n	print newest RPMs (def: list just older RPMs)
+	-r	recursively search under dir (def: ignore subdirectories)
+
 	-v lvl	verbose / debug level
 
 	dir	directory into which RPM files may be found
@@ -141,6 +146,7 @@ my $help = qq{$usage
 	NOTE: Ignores non-files and filenames without the .rpm suffix};
 my %optctl = (
     "b" => \$opt_b,
+    "e" => \$opt_e,
     "k" => \$opt_k,
     "m" => \$opt_m,
     "n" => \$opt_n,
@@ -182,10 +188,10 @@ MAIN: {
     if ($#ARGV != 0) {
 	error(2, "missing or extra argument\nusage: $help");
     }
-    if ((defined $opt_m && defined $opt_r) ||
+    if ((defined $opt_m && defined $opt_e) ||
         (defined $opt_m && defined $opt_b) ||
-        (defined $opt_r && defined $opt_b)) {
-	error(3, "-b, -m and -r conflict\nusage: $help");
+        (defined $opt_e && defined $opt_b)) {
+	error(3, "-b, -m and -e conflict\nusage: $help");
     }
     $dir = $ARGV[0];
 
@@ -194,7 +200,7 @@ MAIN: {
     if (! -d $dir) {
 	error(4, "not a directory: $dir");
     }
-    if (! -r $dir) {
+    if (! -e $dir) {
 	error(5, "directory not readable: $dir");
     }
     if (! -x $dir) {
@@ -223,15 +229,15 @@ MAIN: {
 
 	# parse this RPM into name, version, release
 	#
-	if ($filename =~ m{^(.*)/(.+)-([^-]+)-(.+)\.([^.]+\.rpm)$}) {
+	if ($filename =~ m{^.*/(.+)-([^-]+)-(.+)\.([^.]+\.rpm)$}) {
 
 	    # save parts
 	    #
-	    $rpm_path{$filename} = $1;
-	    $rpm_name{$filename} = $2;
-	    $rpm_ver{$filename} = $3;
-	    $rpm_rel{$filename} = $4;
-	    $rpm_ext{$filename} = $5;
+	    $rpm_name{$filename} = $1;
+	    $rpm_ver{$filename} = $2;
+	    $rpm_rel{$filename} = $3;
+	    $rpm_ext{$filename} = $4;
+	    $rpm_key{$filename} = "$rpm_name{$filename}.$rpm_ext{$filename}";
 
 	    # all kernel RPMs (except kernel-utils or kernel-pcmcia-cs)
 	    # are most recent unless -k so we pretend their name includes
@@ -245,25 +251,26 @@ MAIN: {
 		debug(3, "RPM renaming kernel RPM: from $rpm_name{$filename}");
 		debug(3, "                           to $rpm_name{$filename}" .
 			  "-$rpm_ver{$filename}-$rpm_rel{$filename}");
-		$rpm_name{$filename} .=
-		    "-$rpm_ver{$filename}-$rpm_rel{$filename}";
+		$rpm_key{$filename} =
+		    "$rpm_name{$filename}-$rpm_ver{$filename}-" .
+		    "$rpm_rel{$filename}.$rpm_ext{$filename}";
 	    }
 
 	    # debug parse
 	    #
 	    debug(3, "RPM file: $filename");
-	    debug(3, "RPM path: $rpm_path{$filename}");
 	    debug(3, "RPM name: $rpm_name{$filename}");
 	    debug(3, "RPM ver:  $rpm_ver{$filename}");
 	    debug(3, "RPM rel:  $rpm_rel{$filename}");
 	    debug(3, "RPM ext:  $rpm_ext{$filename}");
+	    debug(3, "RPM key:  $rpm_key{$filename}");
 
 	    # for each RPM name array, save its corresponding filename
 	    #
 	    # We are build a hash of RPM names, of which each hash element
 	    # is an array that we will sort later.
 	    #
-	    push(@{$rpm{$rpm_name{$filename}}}, $filename);
+	    push(@{$rpm{$rpm_key{$filename}}}, $filename);
 
 	# ignore RPM filenames that cannot be parsed
 	#
@@ -278,8 +285,8 @@ MAIN: {
 	debug(3, "found " . scalar(@{$rpm{$name}}) . " file(s) for RPM $name");
 	@{$rpm{$name}} = reverse sort {
 		rpmvercmp($rpm_ver{$a}, $rpm_ver{$b}) ||
-		rpmvercmp($rpm_rel{$a}, $rpm_rel{$b}) ||
-			  $rpm_ext{$a} <=> $rpm_ext{$b} } @{$rpm{$name}};
+		rpmvercmp($rpm_rel{$a}, $rpm_rel{$b})
+				      } @{$rpm{$name}};
         if ($opt_v > 3) {
 	    foreach $filename (@{$rpm{$name}}) {
 		debug(4, "RPM $name filename $filename");
@@ -365,9 +372,10 @@ sub wanted($)
 	return;
     }
 
-    # prune a directory the initial directory (.)
+    # prune a directory under the initial directory (.) unless -r
     #
-    if (-d $filename &&
+    if (! defined $opt_r &&
+        -d $filename &&
     	($File::Find::topdev != $filedev || $File::Find::topino != $fileino)) {
 	debug(6, "File::Find::topdev: $File::Find::topdev");
 	debug(6, "File::Find::topino: $File::Find::topino");
@@ -380,7 +388,6 @@ sub wanted($)
     #
     if (! -f $filename) {
 	debug(4, "in wanted: prune non-file: $File::Find::name");
-	$File::Find::prune = 1;
 	return;
     }
 
@@ -414,9 +421,9 @@ sub rpm_print($)
     if (defined $opt_m) {
     	print "$rpm_name{$filename}\n";
 
-    # if -r, print module-version-release name
+    # if -e, print module-version-release name
     #
-    } elsif (defined $opt_r) {
+    } elsif (defined $opt_e) {
     	print "$rpm_name{$filename}-$rpm_ver{$filename}-$rpm_rel{$filename}\n";
 
     # if -b, print basename of the filename
