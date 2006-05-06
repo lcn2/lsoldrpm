@@ -2,9 +2,9 @@
 #
 # lsoldrpm - list old RPMs found in a directory
 #
-# @(#) $Revision$
-# @(#) $Id$
-# @(#) $Source$
+# @(#) $Revision: 1.1 $
+# @(#) $Id: lsoldrpm.pl,v 1.1 2006/03/17 15:48:46 chongo Exp chongo $
+# @(#) $Source: /usr/local/src/cmd/lsoldrpm/RCS/lsoldrpm.pl,v $
 #
 # Copyright (c) 2006 by Landon Curt Noll.  All Rights Reserved.
 #
@@ -30,7 +30,7 @@
 #
 # Share and enjoy! :-)
 
-# An RPM in a diretory is considered old if there is a RPM for the
+# An RPM in a directory is considered old if there is a RPM for the
 # same module with a newer version in that same directory.  For example,
 # if we have these RPM files:
 #
@@ -96,7 +96,7 @@ $VERSION =~ s/\s+$//;
 # my vars
 #
 my $untaint = qr|^([-+\w\s./]+)$|; 	# untainting path pattern
-my @rpm;				# list of RPM filenames found
+my @file;				# list of RPM filenames found
 my %rpm_path;		# $rpm_path{$i} is dir path of $i without final /
 #
 # NOTE: For calc-devel-2.11.11-0.i686.rpm
@@ -117,28 +117,28 @@ my %rpm_name;		# $rpm_name{$i} is the RPM name of RPM filename $i
 my %rpm_ver;		# $rpm_ver{$i} is the RPM version of RPM filename $i
 my %rpm_rel;		# $rpm_rel{$i} is the RPM release of RPM filename $i
 my %rpm_ext;		# $rpm_ext{$i} is chars after release for filename $i
+
+# $rpm{$n} is array RPM filenames for the RPM named $n
 #
-my %rpm_recent_ver;	# $rpm_recent_ver{$i} most recent RPM version of
-			# the RPM name $i
-my %rpm_recent_rel;	# $rpm_recent_ver{$i} most recent RPM release of
-			# the RPM name $i
-my %rpm_recent_ext;	# $rpm_recent_ext{$i} most recent RPM after rel chars
-			# the RPM name $i
+#	$rpm{"rpm-name"} = ( "filename1", "filename2", "filename3", ... );
+#
+my %rpm;
 
 # usage and help
 #
-my $usage = "$0 [-b] [-k] [-m | -r] [-n] [-v lvl] dir";
+my $usage = "$0 {[-k] [-b | -m | -r] [-n] [-v lvl] dir";
 my $help = qq{$usage
 
-	-b	banenames, ignore leading path to RPMs (default: list path)
+	-b	just print basename of RPM file (default: full pathname)
 	-k	list older kernel based RPM (default: don't)
-	-m	just list module names (default: list filename)
-	-r	just list module-version-release names (default: list filename)
+	-m	just list module names (default: full pathname)
+	-r	just list module-version-release names (default: full pathname)
 	-n	print newest RPMs (default: list just older RPMs)
 	-v lvl	verbose / debug level
 
 	dir	directory into which RPM files may be found
-};
+
+	NOTE: Ignores non-files and filenames without the .rpm suffix};
 my %optctl = (
     "b" => \$opt_b,
     "k" => \$opt_k,
@@ -151,6 +151,8 @@ my %optctl = (
 
 # function prototypes
 #
+sub wanted($);
+sub rpm_print($);
 sub error($$);
 sub debug($$);
 
@@ -160,7 +162,7 @@ sub debug($$);
 MAIN: {
     my %find_opt;	# File::Find directory tree walk options
     my $dir;		# directory argument
-    my $filename;
+    my $filename;	# a name of an RPM file
     my $name;		# RPM module name
 
     # setup
@@ -180,8 +182,10 @@ MAIN: {
     if ($#ARGV != 0) {
 	error(2, "missing or extra argument\nusage: $help");
     }
-    if (defined $opt_m && defined $opt_r) {
-	error(3, "-m and -r conflict\nusage: $help");
+    if ((defined $opt_m && defined $opt_r) ||
+        (defined $opt_m && defined $opt_b) ||
+        (defined $opt_r && defined $opt_b)) {
+	error(3, "-b, -m and -r conflict\nusage: $help");
     }
     $dir = $ARGV[0];
 
@@ -194,7 +198,7 @@ MAIN: {
 	error(5, "directory not readable: $dir");
     }
     if (! -x $dir) {
-	error(6, "directory not searchable: $dir");
+	error(6, "directory cannot be searched: $dir");
     }
     debug(1, "searching for old RPMs under $dir");
 
@@ -211,15 +215,16 @@ MAIN: {
     # find RPM files directly under the directory argument
     #
     find(\%find_opt, $dir);
-    @rpm = sort(@rpm);
+    @file = sort(@file);
 
     # parse the found RPM set filenames
     #
-    foreach $filename (@rpm) {
+    foreach $filename (@file) {
 
 	# parse this RPM into name, version, release
 	#
 	if ($filename =~ m{^(.*)/(.+)-([^-]+)-(.+)\.([^.]+\.rpm)$}) {
+
 	    # save parts
 	    #
 	    $rpm_path{$filename} = $1;
@@ -228,15 +233,15 @@ MAIN: {
 	    $rpm_rel{$filename} = $4;
 	    $rpm_ext{$filename} = $5;
 
-	    # all kernel RPMs (except kernel-utils) are most recent unless -k
-	    # so we pretend their name includes their version and release
-	    #
-	    # XXX - kernel-pcmcia-cs is also a non-kernel RPM
+	    # all kernel RPMs (except kernel-utils or kernel-pcmcia-cs)
+	    # are most recent unless -k so we pretend their name includes
+	    # their version and release
 	    #
 	    if (! defined $opt_k &&
 	        ($rpm_name{$filename} eq "kernel" ||
 		 ($rpm_name{$filename} =~ /^kernel-/ &&
-	          $rpm_name{$filename} ne "kernel-utils"))) {
+	          $rpm_name{$filename} ne "kernel-utils" &&
+		  $rpm_name{$filename} ne "kernel-pcmcia-cs"))) {
 		debug(3, "RPM renaming kernel RPM: from $rpm_name{$filename}");
 		debug(3, "                           to $rpm_name{$filename}" .
 			  "-$rpm_ver{$filename}-$rpm_rel{$filename}");
@@ -255,86 +260,57 @@ MAIN: {
 	} else {
 	    debug(-1, "Warning: cannot parse filename: $filename");
 	}
+
+	# for each RPM name array, save its corresponding filename
+	#
+	# We are build a hash of RPM names, of which each hash element
+	# is an array that we will sort later.
+	#
+	push(@{$rpm{$rpm_name{$filename}}}, $filename);
     }
 
-    # determine the most recent version-release for each RPM module
+    # sort each $rpm{$filename} array based on RPM version and release
     #
-    foreach $filename (@rpm) {
-
-	# if first time we have seen this RPM name, it will be the most recent
-	#
-    	$name = $rpm_name{$filename};
-	if (! defined $rpm_recent_ver{$name}) {
-	    debug(2, "found 1st RPM name: $name");
-	    debug(2, "found 1st RPM ver:  $rpm_ver{$filename}");
-	    debug(2, "found 1st RPM rel:  $rpm_rel{$filename}");
-	    debug(2, "found 1st RPM ext:  $rpm_ext{$filename}");
-	    $rpm_recent_ver{$name} = $rpm_ver{$filename};
-	    $rpm_recent_rel{$name} = $rpm_rel{$filename};
-	    $rpm_recent_ext{$name} = $rpm_ext{$filename};
-
-	# compare RPM version and then RPM relese, same newer if we found it
-	#
-	} elsif (rpmvercmp($rpm_recent_ver{$name}, $rpm_ver{$filename}) < 0 ||
-		 (rpmvercmp($rpm_recent_ver{$name}, $rpm_ver{$filename}) == 0 &&
-		  rpmvercmp($rpm_recent_rel{$name}, $rpm_rel{$filename}) < 0)) {
-	    debug(2, "found newer RPM name: $name");
-	    debug(2, "found newer RPM ver:  $rpm_ver{$filename}");
-	    debug(2, "  older was RPM ver:  $rpm_recent_ver{$name}");
-	    debug(2, "found newer RPM rel:  $rpm_rel{$filename}");
-	    debug(2, "  older was RPM rel:  $rpm_recent_rel{$name}");
-	    debug(2, "found newer RPM ext:  $rpm_ext{$filename}");
-	    debug(2, "  older was RPM ext:  $rpm_recent_ext{$name}");
-	    $rpm_recent_ver{$name} = $rpm_ver{$filename};
-	    $rpm_recent_rel{$name} = $rpm_rel{$filename};
-	    $rpm_recent_ext{$name} = $rpm_ext{$filename};
-
-	# this RPM is not newer
-	#
-	} else {
-	    debug(3, "found older RPM name: $name");
-	    debug(3, "found older RPM ver:  $rpm_ver{$filename}");
-	    debug(3, "   newer is RPM ver:  $rpm_recent_ver{$name}");
-	    debug(3, "found older RPM rel:  $rpm_rel{$filename}");
-	    debug(3, "   newer is RPM rel:  $rpm_recent_rel{$name}");
-	    debug(3, "found older RPM ext:  $rpm_ext{$filename}");
-	    debug(3, "   newer is RPM ext:  $rpm_recent_ext{$name}");
-	}
-    }
-
-    # if -n print the most recent RPMs - XXX this is wrong
-    #
-    # XXX - try building, for each RPM name, an array of hashes, each hash
-    #	    of which has an RPM ver, RPM rel, RPM ext, RPM path so that
-    #	    one can sort that array of hashes by version-release.
-    #	    Then print the appropriatre the last or first-to-next-to-last
-    #	    or all versions as needed.
-    #
-    if (defined $opt_n) {
-	foreach $name (%rpm_name) {
-
-	    # print leading path unless -b
-	    #
-	    print "$rpm_path{$name}/" unless defined $opt_b;
-
-	    # print just RPM name if -m
-	    #
-	    if (defined $opt_m) {
-		print "$name\n";
-
-	    # print RPM name-version-release-version if -r
-	    #
-	    } elsif (defined $opt_r) {
-		print "$name-$rpm_recent_ver{$name}-$rpm_recent_rel{$name}\n";
-
-	    # print name-version-release-version.ext otherwise
-	    #
-	    } else {
-		print "$name-$rpm_recent_ver{$name}-$rpm_recent_rel{$name}" .
-		      ".$rpm_recent_ext{$name}\n";
+    foreach $name (keys %rpm) {
+	debug(3, "found " . scalar(@{$rpm{$name}}) . " file(s) for RPM $name");
+    	sort { rpmvercmp($rpm_ver{$a}, $rpm_ver{$a}) ||
+	       rpmvercmp($rpm_rel{$a}, $rpm_rel{$b}) ||
+			 $rpm_ext{$a} <=> $rpm_ext{$b} } @{$rpm{$name}};
+        if ($opt_v > 3) {
+	    foreach $filename (@{$rpm{$name}}) {
+		debug(4, "RPM $name filename $filename");
 	    }
 	}
     }
+
+
+    # if -n, print the newest of each RPM
+    #
+    if ($opt_n) {
+
+	# sort by RPM name, print the newest of each RPM name
+	#
+	foreach $name (sort keys %rpm) {
+	    rpm_print(@{$rpm{$name}}[0]);
+	}
+
+    # else, print all but the newest of each RPM
+    #
+    } else {
+
+	# sort by RPM name, print all but the newest of each RPM name
+	#
+	foreach $name (sort keys %rpm) {
+	    shift(@{$rpm{$name}});
+	    foreach $filename (@{$rpm{$name}}) {
+		rpm_print($filename);
+	    }
+	}
+    }
+
+    # All done! -- Jessica Noll, Age 2
+    #
+    exit(0);
 }
 
 
@@ -344,7 +320,7 @@ MAIN: {
 #
 #	$_			current filename within $File::Find::dir
 #
-# and these global vaules set:
+# and these global values set:
 #
 #	$File::Find::dir	current directory name
 #	$File::Find::name 	complete pathname to the file
@@ -358,14 +334,14 @@ sub wanted($)
 {
     my $filename = $_;		# current filename within $File::Find::dir
     my $filedev;		# device of $filename
-    my $fileino;		# inode numner of $filename
+    my $fileino;		# inode number of $filename
 
     # initial debug
     #
     debug(5, "in wanted: arg: $filename");
     debug(6, "in wanted: File::Find::name: $File::Find::name");
 
-    # stat the filename argment
+    # stat the filename argument
     #
     ($filedev, $fileino) = stat($filename);
     debug(6, "filedev: $filedev");
@@ -413,8 +389,40 @@ sub wanted($)
     # record the RPM file
     #
     debug(4, "in wanted: will process: $File::Find::name");
-    push @rpm, $File::Find::name;
+    push @file, $File::Find::name;
     return;
+}
+
+
+# rpm_print - print information about an rpm
+#
+# given:
+#	$filename	name of the RPM to print
+#
+sub rpm_print($)
+{
+    my ($filename) = @_;
+
+    # if -m, print module name
+    #
+    if (defined $opt_m) {
+    	print "$rpm_name{$filename}\n";
+
+    # if -r, print module-version-release name
+    #
+    } elsif (defined $opt_r) {
+    	print "$rpm_name{$filename}-$rpm_ver{$filename}-$rpm_rel{$filename}\n";
+
+    # if -b, print basename of the filename
+    #
+    } elsif (defined $opt_b) {
+    	print basename($filename), "\n";
+
+    # otherwise print the filename
+    #
+    } else {
+	print "$filename\n";
+    }
 }
 
 
