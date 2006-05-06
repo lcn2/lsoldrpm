@@ -2,8 +2,8 @@
 #
 # lsoldrpm - list old RPMs found in a directory
 #
-# @(#) $Revision: 1.1 $
-# @(#) $Id: lsoldrpm.pl,v 1.1 2006/03/17 15:48:46 chongo Exp chongo $
+# @(#) $Revision: 1.2 $
+# @(#) $Id: lsoldrpm.pl,v 1.2 2006/05/06 06:13:08 chongo Exp chongo $
 # @(#) $Source: /usr/local/src/cmd/lsoldrpm/RCS/lsoldrpm.pl,v $
 #
 # Copyright (c) 2006 by Landon Curt Noll.  All Rights Reserved.
@@ -90,7 +90,7 @@ BEGIN {
 
 # version - RCS style *and* usable by MakeMaker
 #
-my $VERSION = substr q$Revision: 1.1 $, 10;
+my $VERSION = substr q$Revision: 1.2 $, 10;
 $VERSION =~ s/\s+$//;
 
 # my vars
@@ -273,9 +273,10 @@ MAIN: {
     #
     foreach $name (keys %rpm) {
 	debug(3, "found " . scalar(@{$rpm{$name}}) . " file(s) for RPM $name");
-    	sort { rpmvercmp($rpm_ver{$a}, $rpm_ver{$a}) ||
-	       rpmvercmp($rpm_rel{$a}, $rpm_rel{$b}) ||
-			 $rpm_ext{$a} <=> $rpm_ext{$b} } @{$rpm{$name}};
+	@{$rpm{$name}} = reverse sort {
+		rpmvercmp($rpm_ver{$a}, $rpm_ver{$b}) ||
+		rpmvercmp($rpm_rel{$a}, $rpm_rel{$b}) ||
+			  $rpm_ext{$a} <=> $rpm_ext{$b} } @{$rpm{$name}};
         if ($opt_v > 3) {
 	    foreach $filename (@{$rpm{$name}}) {
 		debug(4, "RPM $name filename $filename");
@@ -283,13 +284,13 @@ MAIN: {
 	}
     }
 
-
     # if -n, print the newest of each RPM
     #
-    if ($opt_n) {
+    if (defined $opt_n) {
 
 	# sort by RPM name, print the newest of each RPM name
 	#
+	debug(1, "print the newest of each RPM");
 	foreach $name (sort keys %rpm) {
 	    rpm_print(@{$rpm{$name}}[0]);
 	}
@@ -300,10 +301,12 @@ MAIN: {
 
 	# sort by RPM name, print all but the newest of each RPM name
 	#
+	debug(1, "print all but the newest of each RPM");
 	foreach $name (sort keys %rpm) {
-	    shift(@{$rpm{$name}});
-	    foreach $filename (@{$rpm{$name}}) {
-		rpm_print($filename);
+	    my $found = undef;
+	    foreach $filename ( @{$rpm{$name}} ) {
+		rpm_print($filename) if defined $found;
+		$found = $filename;
 	    }
 	}
     }
