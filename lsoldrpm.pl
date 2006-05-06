@@ -2,8 +2,8 @@
 #
 # lsoldrpm - list old RPMs found in a directory
 #
-# @(#) $Revision: 1.2 $
-# @(#) $Id: lsoldrpm.pl,v 1.2 2006/05/06 06:13:08 chongo Exp chongo $
+# @(#) $Revision: 1.3 $
+# @(#) $Id: lsoldrpm.pl,v 1.3 2006/05/06 06:53:18 chongo Exp chongo $
 # @(#) $Source: /usr/local/src/cmd/lsoldrpm/RCS/lsoldrpm.pl,v $
 #
 # Copyright (c) 2006 by Landon Curt Noll.  All Rights Reserved.
@@ -90,7 +90,7 @@ BEGIN {
 
 # version - RCS style *and* usable by MakeMaker
 #
-my $VERSION = substr q$Revision: 1.2 $, 10;
+my $VERSION = substr q$Revision: 1.3 $, 10;
 $VERSION =~ s/\s+$//;
 
 # my vars
@@ -257,16 +257,19 @@ MAIN: {
 	    debug(3, "RPM ver:  $rpm_ver{$filename}");
 	    debug(3, "RPM rel:  $rpm_rel{$filename}");
 	    debug(3, "RPM ext:  $rpm_ext{$filename}");
+
+	    # for each RPM name array, save its corresponding filename
+	    #
+	    # We are build a hash of RPM names, of which each hash element
+	    # is an array that we will sort later.
+	    #
+	    push(@{$rpm{$rpm_name{$filename}}}, $filename);
+
+	# ignore RPM filenames that cannot be parsed
+	#
 	} else {
 	    debug(-1, "Warning: cannot parse filename: $filename");
 	}
-
-	# for each RPM name array, save its corresponding filename
-	#
-	# We are build a hash of RPM names, of which each hash element
-	# is an array that we will sort later.
-	#
-	push(@{$rpm{$rpm_name{$filename}}}, $filename);
     }
 
     # sort each $rpm{$filename} array based on RPM version and release
