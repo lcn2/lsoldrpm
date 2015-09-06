@@ -3,9 +3,9 @@
 #
 # lsoldrpm - list old RPMs in a directory
 #
-# @(#) $Revision$
-# @(#) $Id$
-# @(#) $Source$
+# @(#) $Revision: 1.1 $
+# @(#) $Id: Makefile,v 1.1 2006/03/11 18:18:15 chongo Exp root $
+# @(#) $Source: /usr/local/src/bin/lsoldrpm/RCS/Makefile,v $
 #
 # Copyright (c) 2006 by Landon Curt Noll.  All Rights Reserved.
 #
@@ -37,7 +37,7 @@ RM= rm
 CP= cp
 CHMOD= chmod
 
-TOPNAME= cmd
+TOPNAME= bin
 INSTALL= install
 
 DESTDIR= /usr/local/bin
