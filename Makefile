@@ -3,8 +3,8 @@
 #
 # lsoldrpm - list old RPMs in a directory
 #
-# @(#) $Revision: 1.1 $
-# @(#) $Id: Makefile,v 1.1 2006/03/11 18:18:15 chongo Exp root $
+# @(#) $Revision: 1.2 $
+# @(#) $Id: Makefile,v 1.2 2015/09/06 08:20:23 root Exp $
 # @(#) $Source: /usr/local/src/bin/lsoldrpm/RCS/Makefile,v $
 #
 # Copyright (c) 2006 by Landon Curt Noll.  All Rights Reserved.
