@@ -52,6 +52,7 @@ configure:
 clean quick_clean quick_distclean distclean:
 
 clobber quick_clobber: clean
+	${RM} -f ${TARGETS}
 
 install: all
 	${INSTALL} -m 0555 ${TARGETS} ${DESTDIR}
