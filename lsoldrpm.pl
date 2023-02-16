@@ -1,12 +1,8 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/env perl -w
 #
 # lsoldrpm - list old RPMs found in a directory
 #
-# @(#) $Revision: 1.5 $
-# @(#) $Id: lsoldrpm.pl,v 1.5 2006/05/06 07:39:05 chongo Exp $
-# @(#) $Source: /usr/local/src/bin/lsoldrpm/RCS/lsoldrpm.pl,v $
-#
-# Copyright (c) 2006 by Landon Curt Noll.  All Rights Reserved.
+# Copyright (c) 2006,2023 by Landon Curt Noll.  All Rights Reserved.
 #
 # Permission to use, copy, modify, and distribute this software and
 # its documentation for any purpose and without fee is hereby granted,
