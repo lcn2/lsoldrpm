@@ -1,4 +1,4 @@
-#!/usr/bin/end make
+#!/usr/bin/env make
 #
 # lsoldrpm - list old RPMs in a directory
 #
