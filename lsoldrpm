@@ -1,8 +1,8 @@
-#!/usr/bin/env perl -w
+#!/usr/bin/env perl
 #
 # lsoldrpm - list old RPMs found in a directory
 #
-# Copyright (c) 2006,2023 by Landon Curt Noll.  All Rights Reserved.
+# Copyright (c) 2006,2015,2023,2025 by Landon Curt Noll.  All Rights Reserved.
 #
 # Permission to use, copy, modify, and distribute this software and
 # its documentation for any purpose and without fee is hereby granted,
@@ -53,16 +53,25 @@
 # none of them are considered old unless the -k flag is given.  With the
 # exception of the kernel-utils RPM, all kernel-*.rpm files fit into
 # this special case.
+#
+# # chongo (Landon Curt Noll) /\oo/\
+#
+# http://www.isthe.com/chongo/index.html
+# https://github.com/lcn2
+#
+# Share and enjoy!  :-)
+
 
 # requirements
 #
 use strict;
 use bytes;
-use vars qw($opt_v $opt_b $opt_k $opt_m $opt_n $opt_e $opt_r);
-use Getopt::Long;
+use vars qw($opt_h $opt_v $opt_V $opt_b $opt_k $opt_m $opt_n $opt_e $opt_r);
+use Getopt::Long qw(:config no_ignore_case);
 use File::Find;
 no warnings 'File::Find';
 use File::Basename;
+
 
 # required modules that are found in CPAN
 #
@@ -84,13 +93,15 @@ BEGIN {
     }
 };
 
-# version - RCS style *and* usable by MakeMaker
+
+# version
 #
-my $VERSION = substr q$Revision: 1.5 $, 10;
-$VERSION =~ s/\s+$//;
+my $VERSION = "1.5.1 2025-03-27";
+
 
 # my vars
 #
+my $NAME = basename($0);
 my $untaint = qr|^([-+\w\s./]+)$|; 	# untainting path pattern
 my @file;				# list of RPM filenames found
 #
@@ -124,30 +135,36 @@ my %rpm;
 
 # usage and help
 #
-my $usage = "$0 [-b|-e|-m] [-k] [-n] [-r] [-v lvl] dir";
+my $usage = "$NAME [-h] [-v lvl] [-V] [-b|-e|-m] [-k] [-n] [-r] dir";
 my $help = qq{$usage
 
-	-b	print basename of RPM file (def: print pathname)
-	-e	print extended module-version-releases (def: print pathname)
-	-m	print module names (def: print pathname)
+    -h	    print help and exit
+    -v lvl  verbose / debug level
+    -V	    print version and exit
 
-	-k	list older kernel based RPM (def: don't)
-	-n	print newest RPMs (def: list just older RPMs)
-	-r	recursively search under dir (def: ignore subdirectories)
+    -b      print basename of RPM file (def: print pathname)
+    -e      print extended module-version-releases (def: print pathname)
+    -m      print module names (def: print pathname)
 
-	-v lvl	verbose / debug level
+    -k      list older kernel based RPM (def: don't)
+    -n      print newest RPMs (def: list just older RPMs)
+    -r      recursively search under dir (def: ignore subdirectories)
 
-	dir	directory into which RPM files may be found
+    dir     directory into which RPM files may be found
 
-	NOTE: Ignores non-files and filenames without the .rpm suffix};
+    NOTE: Ignores non-files and filenames without the .rpm suffix
+
+$NAME version: $VERSION};
 my %optctl = (
+    "h" => \$opt_h,
     "b" => \$opt_b,
     "e" => \$opt_e,
     "k" => \$opt_k,
     "m" => \$opt_m,
     "n" => \$opt_n,
     "r" => \$opt_r,
-    "v=i" => \$opt_v
+    "v=i" => \$opt_v,
+    "V" => \$opt_V,
 );
 
 
@@ -174,12 +191,22 @@ MAIN: {
 
     # set the defaults
     #
+    $opt_h = 0;
     $opt_v = 0;
+    $opt_V = 0;
 
     # parse args
     #
     if (!GetOptions(%optctl)) {
 	error(1, "invalid command line\nusage: $help");
+    }
+    if ($opt_h) {
+        print "$help\n";
+        exit(0);
+    }
+    if ($opt_V) {
+        print "$VERSION\n";
+        exit(0);
     }
     if ($#ARGV != 0) {
 	error(2, "missing or extra argument\nusage: $help");
