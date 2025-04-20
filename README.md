@@ -41,13 +41,13 @@ sudo make install
 # Example
 
 ```sh
-/usr/local/bin/lsoldrpm /var/tmp/rpm-set-dir
+$ /usr/local/bin/lsoldrpm /var/tmp/rpm-set-dir
 ```
 
 
 # To use
 
-```sh
+```
 /usr/local/bin/lsoldrpm [-h] [-v lvl] [-V] [-b|-e|-m] [-k] [-n] [-r] dir
 
     -h	    print help and exit
